@@ -16,8 +16,8 @@ The source for most of these challenges is StrataScratch.
 
 | Challenge | Description | Original Question |
 |-----------|-------------|------------------|
-| [Challenge 1](./easy/challenge1.sql) | Description of the challenge. | [Link to Original Question](https://platform.stratascratch.com/coding/10364-fridays-likes-count) |
-| [Challenge 2](./easy/challenge2.sql) | Description of the challenge. | [Link to Original Question](https://example.com/original_question2) |
+| [Friday's Likes](./medium/ID%2010364%20-%20Friday's%20likes.sql) | Calculate the total number of likes made on posts by friends specifically on Fridays. | [Link to Original Question](https://platform.stratascratch.com/coding/10364-fridays-likes-count) |
+| [Employee Salaries](./medium/Employee%20Salaries.sql) | Select top 3 departments with atleast 10 employees and percentage of salary>100000. | [Link to Original Question](https://www.interviewquery.com/questions/employee-salaries) |
 | [Challenge 3](./easy/challenge3.sql) | Description of the challenge. | [Link to Original Question](https://example.com/original_question3) |
 
 
