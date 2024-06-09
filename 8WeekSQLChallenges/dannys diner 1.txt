@@ -1,0 +1,90 @@
+/* --------------------
+   Case Study Questions
+   --------------------*/
+
+-- 1. What is the total amount each customer spent at the restaurant?
+-- 2. How many days has each customer visited the restaurant?
+-- 3. What was the first item from the menu purchased by each customer?
+-- 4. What is the most purchased item on the menu and how many times was it purchased by all customers?
+-- 5. Which item was the most popular for each customer?
+-- 6. Which item was purchased first by the customer after they became a member?
+-- 7. Which item was purchased just before the customer became a member?
+-- 8. What is the total items and amount spent for each member before they became a member?
+-- 9.  If each $1 spent equates to 10 points and sushi has a 2x points multiplier - how many points would each customer have?
+-- 10. In the first week after a customer joins the program (including their join date) they earn 2x points on all items, not just sushi - how many points do customer A and B have at the end of January?
+
+-- Example Query:
+
+
+-- 10. 
+-- select ct1.customer_id, 
+-- sum(case when ct1.order_date<m.join_date+7 and ct1.order_date>=m.join_date then men.price*20 else
+--     case when men.product_name='sushi' then men.price*20 else men.price*10 end
+--    end)  
+-- from dannys_diner.sales ct1 join dannys_diner.menu men on ct1.product_id = men.product_id
+-- join dannys_diner.members m on ct1.customer_id  = m.customer_id
+-- where ct1.order_date<='2021-01-31'
+-- group by ct1.customer_id;
+
+-- 9.
+-- select ct1.customer_id,
+-- sum(case when men.product_name='sushi' then men.price*20 else men.price*10 end) 
+-- from dannys_diner.sales ct1 join dannys_diner.menu men on ct1.product_id = men.product_id
+-- group by ct1.customer_id;
+
+
+-- 8.
+-- with ct1 as (select s.customer_id, s.product_id, s.order_date
+--           from dannys_diner.sales s join dannys_diner.members m on s.customer_id=m.customer_id
+--           where s.order_date<m.join_date)
+-- select ct1.customer_id, count(distinct ct1.product_id), sum(men.price) --, ct1.order_date, men.product_name 
+-- from ct1 join dannys_diner.menu men on ct1.product_id = men.product_id
+-- group by ct1.customer_id;
+
+
+-- 7.
+-- with ct1 as (select s.customer_id, s.product_id, s.order_date, dense_rank() over (partition by s.customer_id order by s.order_date desc) rn
+-- from dannys_diner.sales s join dannys_diner.members m on s.customer_id=m.customer_id
+-- where s.order_date<m.join_date)
+-- select ct1.customer_id, ct1.order_date, men.product_name from ct1 join dannys_diner.menu men on ct1.product_id = men.product_id
+-- where ct1.rn=1;
+
+-- 6.
+-- with ct1 as (select s.customer_id, s.product_id, s.order_date, dense_rank() over (partition by s.customer_id order by s.order_date ) rn
+-- from dannys_diner.sales s join dannys_diner.members m on s.customer_id=m.customer_id
+-- where s.order_date>=m.join_date)
+-- select ct1.customer_id, ct1.order_date, men.product_name from ct1 join dannys_diner.menu men on ct1.product_id = men.product_id
+-- where ct1.rn=1;
+
+-- 5.
+-- with ct1 as (select s.customer_id, s.product_id, dense_rank() over (partition by s.customer_id order by count(s.product_id) desc) rn
+-- from dannys_diner.sales s group by s.customer_id, s.product_id)
+-- select ct1.customer_id, m.product_name from ct1 join dannys_diner.menu m on ct1.product_id = m.product_id
+-- where ct1.rn = 1 order by ct1.customer_id
+-- ;
+
+-- 4. 
+-- with cnt as (select s.product_id, m.product_name, count(s.product_id) c1 from dannys_diner.sales s
+--              join dannys_diner.menu m on s.product_id=m.product_id
+--              group by s.product_id, m.product_name )
+-- ,cmax as (select * from cnt order by c1 desc limit 1)
+-- select s.customer_id, count(s.product_id) from dannys_diner.sales s, cmax where s.product_id = cmax.product_id
+-- group by s.customer_id;
+
+-- 3. 
+-- select * from (select s.customer_id, m.product_name, row_number() over (partition by s.customer_id order by s.order_date) rn
+-- from dannys_diner.sales s join dannys_diner.menu m
+-- on s.product_id = m.product_id) a where rn =1
+-- ;
+
+-- 2. 
+-- select customer_id,count(order_date) from dannys_diner.sales group by customer_id;
+
+-- 1.
+-- SELECT
+--   	customer_id,
+--     sum(price)
+-- FROM dannys_diner.sales s.
+-- left join dannys_diner.menu m
+-- on s.product_id = m.product_id
+-- group by s.customer_id;
