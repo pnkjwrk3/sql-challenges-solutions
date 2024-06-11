@@ -8,7 +8,7 @@ The source for most of these challenges is StrataScratch.
 
 | Challenge | Description | Original Question |
 |-----------|-------------|------------------|
-| [Challenge 1](./easy/challenge1.sql) | Description of the challenge. | [Link to Original Question](https://example.com/original_question1) |
+| [Listening Habits](./easy/ID%2010367%20-%20Listening%20Habits.sql) | Simple aggregation query, sum and count. | [Link to Original Question](https://platform.stratascratch.com/coding/10367-aggregate-listening-data) |
 | [Challenge 2](./easy/challenge2.sql) | Description of the challenge. | [Link to Original Question](https://example.com/original_question2) |
 | [Challenge 3](./easy/challenge3.sql) | Description of the challenge. | [Link to Original Question](https://example.com/original_question3) |
 
