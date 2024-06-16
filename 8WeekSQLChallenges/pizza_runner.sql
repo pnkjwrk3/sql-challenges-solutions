@@ -203,5 +203,95 @@ group by
 	day1
 order by 	
 	pizzaCount desc;
+
+
+
+--	B. Runner and Customer Experience
+--	1. How many runners signed up for each 1 week period? (i.e. week starts 2021-01-01)
+--	had to mod with 53, as 1st of Jan 2021 was friday, making it 53rd week of 2019.
+--	Another way to resolve it would have been calculating how far closest monday is, add that.
+select
+	extract('week' from r.registration_date)%53 as week1,
+	count(r.runner_id)
+FROM
+	runners r 
+group by
+	week1
+order by
+	week1;
+
+
+--	2. What was the average time in minutes it took for each runner to arrive at the Pizza Runner HQ to pickup the order?
+--	This one was tricky in Postgres, check methods supported by extract
+select
+	runner_id,
+	round(avg((extract(epoch from roc.pickup_time - coc.order_time) / 60)),2)
+from
+	customer_orders_clean coc
+left join
+	 runner_orders_clean roc 
+on coc.order_id = roc.order_id 
+where
+	roc.cancellation is null
+group by runner_id;
+
+--select * from runner_orders_clean roc ;
+--select order_id, max(order_time) from customer_orders_clean coc group by order_id ;
+--
+--select coc.order_id,
+--	extract(epoch from roc.pickup_time - coc.order_time) / 60
+--from 
+--	customer_orders_clean coc
+--left join
+--	 runner_orders_clean roc 
+--on coc.order_id = roc.order_id 
+--where
+--	roc.cancellation is null
+
+
+--	3. Is there any relationship between the number of pizzas and how long the order takes to prepare?
+--  limited data, it seems the time increases with count but correlation != Causation
+
+with cte as (select order_id, max(order_time) as order_time, count(1) as count_pizza 
+				from customer_orders_clean coc group by order_id)
+select 
+	cte.count_pizza, avg((extract(epoch from roc.pickup_time - cte.order_time) / 60))
+from 
+	runner_orders_clean roc 
+inner join 
+	cte
+on roc.order_id = cte.order_id
+where 
+	roc.cancellation is null
+group by
+	cte.count_pizza;
+
 	
+--	4. What was the average distance travelled for each customer?
+select
+	coc.customer_id,
+	round(avg(distance)::numeric, 2) as average_distance_travelled
+from
+	customer_orders_clean coc 
+inner join
+	runner_orders_clean roc 
+on coc.order_id = roc.order_id
+where 
+	roc.cancellation is null
+group by 
+	coc.customer_id ;
+
+
+--	5. What was the difference between the longest and shortest delivery times for all orders?
+
+
+--	6. What was the average speed for each runner for each delivery and do you notice any trend for these values?
+
+
+--	7. What is the successful delivery percentage for each runner?
+
+
+	
+
+
 
