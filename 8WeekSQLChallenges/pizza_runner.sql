@@ -283,15 +283,66 @@ group by
 
 
 --	5. What was the difference between the longest and shortest delivery times for all orders?
+select 
+	max(duration),
+	min(duration),
+	max(duration) - min(duration) as diff_delivery_time
+from
+	runner_orders_clean roc 
+where 
+	roc.cancellation is null;
 
 
 --	6. What was the average speed for each runner for each delivery and do you notice any trend for these values?
+select
+	roc.runner_id,
+	roc.order_id ,
+	round(max(roc.distance::numeric) / max(roc.duration::numeric/60),2) as avg_speed
+from
+	runner_orders_clean roc 
+where 
+	roc.cancellation is null
+group by
+	roc.runner_id, roc.order_id ;
 
 
 --	7. What is the successful delivery percentage for each runner?
-
+select 
+	roc.runner_id,
+	sum(case when roc.cancellation is null then 1
+			else 0 end) as success_deliveries,
+	count(roc.order_id) as total_deliveries,
+	(sum(case when roc.cancellation is null then 1
+			else 0 end)::numeric / count(roc.order_id)::numeric)*100 as success_delivery_percentage
+from
+	runner_orders_clean roc 
+group by
+	roc.runner_id;
 
 	
+
+--	C. Ingredient Optimisation
+--	1. What are the standard ingredients for each pizza?
+
+
+--	2. What was the most commonly added extra?
+
+
+--	3. What was the most common exclusion?
+
+
+--	4. Generate an order item for each record in the customers_orders table in the format of one of the following:
+--	Meat Lovers
+--	Meat Lovers - Exclude Beef
+--	Meat Lovers - Extra Bacon
+--	Meat Lovers - Exclude Cheese, Bacon - Extra Mushroom, Peppers
+
+
+--	5. Generate an alphabetically ordered comma separated ingredient list for each pizza order from the customer_orders table and add a 2x in front of any relevant ingredients
+--	For example: "Meat Lovers: 2xBacon, Beef, ... , Salami"
+
+
+--	6. What is the total quantity of each ingredient used in all delivered pizzas sorted by most frequent first?
 
 
 
