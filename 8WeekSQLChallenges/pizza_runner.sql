@@ -346,3 +346,104 @@ group by
 
 
 
+
+--	D. Pricing and Ratings
+--	If a Meat Lovers pizza costs $12 and Vegetarian costs $10 and there were no charges for changes - how much money has Pizza Runner made so far if there are no delivery fees?
+select 
+	sum(case when coc.pizza_id = 1 then 12
+			else 10 end) as total_sales
+from
+	customer_orders_clean coc 
+inner join
+	runner_orders_clean roc 
+on coc.order_id = roc.order_id 
+where 	
+	roc.cancellation is null;
+
+
+--	What if there was an additional $1 charge for any pizza extras?
+--	Add cheese is $1 extra
+
+-- assuming each extra counts as a $1 and cheese is an additional $1
+-- me when bored.
+with norm_orders as (select 
+	coc.customer_id,
+	coc.order_id ,
+	coc.pizza_id,
+	case when coc.pizza_id = 1 then 12
+			else 10 end as base_price,
+	regexp_split_to_table(coalesce(coc.extras,'-1'), ',')::int as extras_n,
+	row_number() over (partition by coc.order_id, coc.customer_id, coc.pizza_id order by extras) as rn_e
+	from
+		customer_orders_clean coc 
+	where
+		exists (select 1 from runner_orders_clean roc 
+	        	where 
+	        		coc.order_id = roc.order_id 
+	        		and roc.cancellation is null)
+	)
+ , final_summary as (select 
+	no1.order_id, no1.customer_id, no1.pizza_id,
+	max(no1.base_price) as base_price1,
+	sum(case when (no1.extras_n)<>-1 then 1 else 0 end) as count_extras,
+	case when max(no1.extras_n)=4 then 1 else 0 end as cheese_cost
+	from
+		norm_orders no1
+	group by
+		no1.order_id, no1.customer_id, no1.pizza_id, no1.rn_e
+	)
+select
+	sum(base_price1) + sum(count_extras) + sum(cheese_cost) sales_w_extras
+from
+	final_summary;
+
+
+-- simplified, assuming any number of extras are a $1 and if cheese that's an additional $1
+select 	
+	sum(case when coc.pizza_id = 1 then 12
+			else 10 end) as total_sales,
+	sum(case when coc.extras like '%4%' then 2
+			when coc.extras is not null then 1
+			else 0 end) as extras_sales,
+	sum(case when coc.pizza_id = 1 then 12 else 10 end) 
+		+ sum(case when coc.extras like '%4%' then 2
+			when coc.extras is not null then 1
+			else 0 end) as sales_w_extras
+from
+	customer_orders_clean coc 
+where
+	exists (select 1 from runner_orders_clean roc 
+        	where 
+        		coc.order_id = roc.order_id 
+        		and roc.cancellation is null);
+
+-- PENDING --
+--	The Pizza Runner team now wants to add an additional ratings system that allows customers to rate their runner, how would you design an additional table for this new dataset - generate a schema for this new table and insert your own data for ratings for each successful customer order between 1 to 5.
+
+
+--	Using your newly generated table - can you join all of the information together to form a table which has the following information for successful deliveries?
+--	customer_id
+--	order_id
+--	runner_id
+--	rating
+--	order_time
+--	pickup_time
+--	Time between order and pickup
+--	Delivery duration
+--	Average speed
+--	Total number of pizzas
+        	
+
+--	If a Meat Lovers pizza was $12 and Vegetarian $10 fixed prices with no cost for extras and each runner is paid $0.30 per kilometre traveled - how much money does Pizza Runner have left over after these deliveries?
+with runner_costs as (select sum(case when distance is not null then distance*0.3 else 0 end) as runner_cost
+					from runner_orders_clean roc)
+, piza_sales as (select
+	sum(case when coc.pizza_id=1 then 12 else 10 end) as sales_pizza
+from
+	customer_orders_clean coc
+where
+	exists (select 1 from runner_orders_clean roc 
+        	where 
+        		coc.order_id = roc.order_id 
+        		and roc.cancellation is null))
+ select round(sales_pizza - runner_cost::numeric, 2) from piza_sales, runner_costs ;
