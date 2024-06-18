@@ -70,7 +70,7 @@ select pizza_id, string_to_table(toppings, ',') from pizza_recipes pr;
 
 drop table if exists pizza_recipes_norm;
 create table pizza_recipes_norm as
-	select pizza_id, string_to_table(toppings, ',')
+	select pizza_id, string_to_table(toppings, ',')::int as ingredients
 	from pizza_recipes pr ;
 
 		
@@ -323,12 +323,54 @@ group by
 
 --	C. Ingredient Optimisation
 --	1. What are the standard ingredients for each pizza?
-
+select 
+	max(pn.pizza_name) ,
+	string_agg(pt.topping_name, ',' )
+from 
+	pizza_recipes_norm prn
+join 
+	pizza_toppings pt
+	on prn.ingredients = pt.topping_id 
+join 
+	pizza_names pn 
+	on prn.pizza_id = pn.pizza_id 
+group by
+	prn.pizza_id ;
 
 --	2. What was the most commonly added extra?
+with ex_freq as (select
+	string_to_table(extras,',')::int as extra,
+	count(1) as freq
+from
+	customer_orders_clean coc 
+group by extra)
+select 
+	pt.topping_name 
+from
+	ex_freq
+join
+	pizza_toppings pt 
+	on ex_freq.extra = pt.topping_id 
+where 	
+	freq = (select max(freq) from ex_freq);
 
 
 --	3. What was the most common exclusion?
+with ex_freq as (select
+	string_to_table(exclusions,',')::int as exclusion,
+	count(1) as freq
+from
+	customer_orders_clean coc 
+group by exclusion)
+select 
+	pt.topping_name 
+from
+	ex_freq
+join
+	pizza_toppings pt 
+	on ex_freq.exclusion = pt.topping_id 
+where 	
+	freq = (select max(freq) from ex_freq);
 
 
 --	4. Generate an order item for each record in the customers_orders table in the format of one of the following:
@@ -340,6 +382,7 @@ group by
 
 --	5. Generate an alphabetically ordered comma separated ingredient list for each pizza order from the customer_orders table and add a 2x in front of any relevant ingredients
 --	For example: "Meat Lovers: 2xBacon, Beef, ... , Salami"
+
 
 
 --	6. What is the total quantity of each ingredient used in all delivered pizzas sorted by most frequent first?
