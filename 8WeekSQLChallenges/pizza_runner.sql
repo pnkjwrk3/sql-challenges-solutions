@@ -360,6 +360,10 @@ left join
 where 	
 	freq = (select max(freq) from ex_freq);
 
+-- Key Takeaways
+-- Create a key when dealing with multiple columns that can generate unique combinations that can be reused.
+-- e.g in this case, we have created a key for each pizza_id, exclusions and extras to get the different combinations.
+-- Make use of exists and not exists, and union and union all.
 
 --	4. Generate an order item for each record in the customers_orders table in the format of one of the following:
 --	Meat Lovers
@@ -367,199 +371,187 @@ where
 --	Meat Lovers - Extra Bacon
 --	Meat Lovers - Exclude Cheese, Bacon - Extra Mushroom, Peppers
 
--- First, we need to normalize the extras and exclusions
--- cte_norm seperates the extras and exclusions into rows
--- makes it easier to join with pizza_toppings to get the names
--- Since we are using row_number, we can group the extras and exclusions back into a single row
--- n_ext_exc groups the extras and exclusions back into a single row
--- and also gets the names of the toppings
--- final select statement joins the pizza_names to get the pizza name
--- and filters out the duplicates
--- this is a bit complex, but it works (I think, I hope)
--- Takes care of the case where there are multiple extras and exclusions.
-with cte_norm as (
-select
-	order_id, customer_id, pizza_id, 
-	string_to_table(extras, ',')::int as extras, 
-	string_to_table(exclusions, ',')::int as exclusions,
-	row_number() over (partition by order_id, customer_id, pizza_id order by extras) as rn_ext,
-	row_number() over (partition by order_id, customer_id, pizza_id order by exclusions) as rn_exc
+-- 	First, we need to normalize the exclusions and extras
+--  combined_tn gets the names for each topping.
+--  agg_ee aggregates the names for each id (KEY - combination of pizza_id, exclusions and extras)
+
+with base_orders  as (select
+--	order_id::text || ':' || customer_id::text || ':' || coc.pizza_id::text || ':' || coalesce(exclusions,'-') || ':' || coalesce(extras,'-') as id,
+	coc.pizza_id::text || ':' || coalesce(exclusions,'-') || ':' || coalesce(extras,'-') as id,
+	unnest(string_to_array(extras, ','))::int as value_extras,
+	unnest(string_to_array(exclusions, ','))::int as value_exclusions,
+	row_number() over (partition by coc.pizza_id::text || ':' || coalesce(exclusions,'-') || ':' || coalesce(extras,'-')) as rn
 from
-	customer_orders_clean coc 
-	)
-, n_ext_exc as (
-select 
-	order_id, customer_id, pizza_id,
-	string_agg(cte_norm.exclusions::text, ', ' order by cte_norm.exclusions) as exclusions,
-	string_agg(cte_norm.extras::text, ', ' order by cte_norm.extras) as extras,
-	string_agg(pt_exc.topping_name, ', ' order by cte_norm.exclusions) as exclusions_n,
-	string_agg(pt.topping_name, ', ' order by cte_norm.extras) as extras_n,
-	row_number() over (partition by order_id, customer_id, pizza_id) as rn_ext_exc
+	customer_orders_clean coc
+	) 
+, combined_tn as (select
+	t.id,
+	pt_ext.topping_name as extra_n,
+	pt_exc.topping_name as exclusion_n
 from
-	cte_norm
-left join
-	pizza_toppings pt 
-	on cte_norm.extras = pt.topping_id 
-left join
-	pizza_toppings pt_exc
-	on cte_norm.exclusions = pt_exc.topping_id 
-group by
-	order_id, customer_id, pizza_id, rn_ext, rn_exc
+	base_orders t
+left join 
+	pizza_toppings pt_ext 
+	on t.value_extras = pt_ext.topping_id 
+left join 
+	pizza_toppings pt_exc 
+	on t.value_exclusions = pt_exc.topping_id	
+where
+	t.rn = 1
 	)
+, agg_ee as (select 
+	id,
+	string_agg(extra_n, ', ') as extra_agg,
+	string_agg(exclusion_n, ', ') as exc_agg
+from 
+	combined_tn
+group by id
+) 
 select
+	coc.*,
+	ae.exc_agg,
+	ae.extra_agg,
 	pizza_name || 
-    case when exclusions_n <> '' then ' - Exclude ' || exclusions_n else '' end ||
-    case when extras_n <> '' then ' - Extra ' || extras_n else '' end as combined_description
-	,coc.order_id, coc.customer_id, coc.pizza_id, coc.order_time,
-	pn.pizza_name,
-	n_ext_exc.exclusions_n,
-	n_ext_exc.extras_n,
-	n_ext_exc.rn_ext_exc
+    case when exc_agg <> '' then ' - Exclude ' || exc_agg else '' end ||
+    case when extra_agg <> '' then ' - Extra ' || extra_agg else '' end as combined_description
 from
 	customer_orders_clean coc 
 left join
-	n_ext_exc
-	on coc.order_id = n_ext_exc.order_id
-		and coc.customer_id = n_ext_exc.customer_id
-		and coc.pizza_id = n_ext_exc.pizza_id
-		and coalesce(coc.exclusions::text, '-'::text) = coalesce(n_ext_exc.exclusions::text, '-'::text)
-		and coalesce(coc.extras::text, '-'::text) = coalesce(n_ext_exc.extras::text, '-'::text)
+	agg_ee ae
+	on coc.pizza_id::text || ':' || coalesce(exclusions,'-') || ':' || coalesce(extras,'-') = ae.id
 left join 	
 	pizza_names pn
 	on coc.pizza_id = pn.pizza_id 
-where 
-	coalesce (n_ext_exc.rn_ext_exc,1) = 1
-order by 
+order by
 	order_id;
 
+
 select * from customer_orders_clean coc ;
+select * from pizza_recipes pr 
 	
 
 
 --	5. Generate an alphabetically ordered comma separated ingredient list for each pizza order from the customer_orders table and add a 2x in front of any relevant ingredients
 --	For example: "Meat Lovers: 2xBacon, Beef, ... , Salami"
+-- 	First, we need to normalize the toppings, exclusions and extras
+-- 	split_topping gets the base toppings from the pizza_recipes
+-- 	split_exclusions gets the exclusions from the customer_orders
+-- 	split_extras gets the extras from the customer_orders
+-- 	combined_t_ext adds the extras to the base toppings
+-- 	combined_exc removes the exclusions from the combined_t_ext
+-- 	dis_ing gets the final aggregated list of ingredients
+-- 	final select statement gets the final list of ingredients
 
--- PENDING
-with cte_norm as (
-select
-	order_id, customer_id, coc.pizza_id, coalesce(exclusions,'-') || ':' || coalesce(extras,'-') as key1,
-	string_to_table(extras, ',') as extras, 
-	string_to_table(exclusions, ',') as exclusions,
-	row_number() over (partition by order_id, customer_id, coc.pizza_id order by extras) as rn_ext,
-	row_number() over (partition by order_id, customer_id, coc.pizza_id order by exclusions) as rn_exc
+--(column_toppings+column_extras) - column_exclusions
+with base_orders  as (select
+--	order_id::text || ':' || customer_id::text || ':' || coc.pizza_id::text || ':' || coalesce(exclusions,'-') || ':' || coalesce(extras,'-') as id,
+	coc.pizza_id::text || ':' || coalesce(exclusions,'-') || ':' || coalesce(extras,'-') as id,
+	max(extras) as extras, max(exclusions) as exclusions, max(pr.toppings) as toppings
 from
 	customer_orders_clean coc
-	)
-, toppings_list as (
-select
-	cte_norm.order_id, cte_norm.customer_id, cte_norm.pizza_id, key1,
-	toppings,
-	exclusions,
-	extras,
-	position(exclusions in toppings),
-	string_to_table(replace(toppings, coalesce(exclusions, toppings) || ', ', '') || case when extras is not null then ', ' || extras else '' end, ',')::int as toppings_f
-from
-	cte_norm
 left join
 	pizza_recipes pr 
-	on cte_norm.pizza_id = pr.pizza_id 
-where 
-	rn_ext = 1
-	) 
---select order_id, customer_id, pizza_id, key1,  from toppings_list group by order_id, customer_id, pizza_id, key1;
-, freq_topp as (
-select 
---	*
-	tl.order_id, tl.customer_id, tl.pizza_id, 
-	tl.exclusions, tl.extras, 
-	pt.topping_name, (key1) as key1,
-	case when count(*)>1 then count(*)::text || 'x' || (topping_name) else (topping_name) end as freq_name
-from 	
-	toppings_list tl
-left join
-	pizza_toppings pt 
-	on tl.toppings_f = pt.topping_id 
-group by tl.order_id, tl.customer_id, tl.pizza_id, tl.exclusions, tl.extras, pt.topping_name, tl.key1
-	) select * from freq_topp;
-, ing_list_ex as (
-select
-	ft.order_id, ft.customer_id, ft.pizza_id, ft.key1,
-	split_part(ft.key1, ':', 1) as extras,
-    split_part(ft.key1, ':', 2) as exclusions,
-	string_agg(distinct ft.freq_name, ', ' ) as ingredient_list_ex
-from
-	freq_topp ft
-group by 
-	ft.order_id, ft.customer_id, ft.pizza_id, ft.key1
-	) select * from ing_list_ex;
-,ing_list as (
-select 
-	prn.pizza_id,
-	string_agg(pt.topping_name, ', ' order by pt.topping_name) as ingredient_list_def
-from
-	pizza_recipes_norm prn 
-join
-	pizza_toppings pt 
-	on prn.ingredients = pt.topping_id 
+	on coc.pizza_id = pr.pizza_id 
 group by
-	prn.pizza_id
-) --select * from ing_list_ex;
-select 
-	coc.order_id, coc.customer_id, coc.pizza_id, 
-	coc.extras, coc.exclusions, 
---	iex.ingredient_list_ex,
---	idef.ingredient_list_def,
-	coalesce(iex.ingredient_list_ex, idef.ingredient_list_def) as ingredient_list,
-	coc.order_time
+	id
+	) 
+, split_topping AS (
+  select id, unnest(string_to_array(toppings, ','))::int as value
+  from base_orders 
+),
+split_exclusions AS (
+  select id, unnest(string_to_array(exclusions, ','))::int as value
+  from base_orders 
+),
+split_extras AS (
+  select id, unnest(string_to_array(extras, ','))::int as value
+  from base_orders 
+),
+combined_t_ext AS (
+  select id, value
+  from split_topping
+  union all
+  select id, value
+  from split_extras
+) 
+, combined_exc as (select
+	t.id,
+	pt.topping_name ,
+	case when count(*)>1 then count(*)::text || 'x' || (pt.topping_name) else (pt.topping_name) end as freq_name
 from
-	customer_orders_clean coc 
-left join
-	ing_list_ex iex
-	on coc.customer_id = iex.customer_id
-		and coc.order_id = iex.order_id
-		and coc.pizza_id = iex.pizza_id
-		and coalesce(coc.exclusions,'-') || ':' || coalesce(coc.extras,'-')  = iex.key1
+	combined_t_ext t
 left join 
-	ing_list idef
-	on coc.pizza_id = idef.pizza_id
+	pizza_toppings pt 
+	on t.value = pt.topping_id 
+where not exists (
+	select 1 
+	from split_exclusions b 
+	where t.id = b.id and b.value = t.value
+	)
+group by t.id, pt.topping_name
+)
+, dis_ing as (select 
+	id,
+	string_agg(freq_name, ', ' order by topping_name) as ing_list
+from 
+	combined_exc
+group by id
+) 
+select
+	coc.*, di.ing_list
+from
+	customer_orders_clean coc
+left join
+	dis_ing di 
+	on coc.pizza_id::text || ':' || coalesce(exclusions,'-') || ':' || coalesce(extras,'-') = di.id
 order by
-	order_id, customer_id, pizza_id;
-
---Mushrooms, Onions, Peppers, Tomato Sauce, Tomatoes
-select * from pizza_toppings pt ;
-
-
-
-
+	coc.order_id;
 
 
 --	6. What is the total quantity of each ingredient used in all delivered pizzas sorted by most frequent first?
--- PENDING
-with cte as (
-  select
-  	order_id, customer_id, coc.pizza_id, coc.exclusions, extras,
-    case
-      when exclusions is not null then replace(replace(toppings, concat(',', replace(exclusions, ',', ',')), ''), ',', '')
-      else toppings
-    end as cleaned_toppings,
-    case
-      when extras is not null then concat(toppings, ',', extras)
-      else toppings
-    end as cleaned_toppings_with_extras
+-- split_topping gets the base toppings from the pizza_recipes
+-- split_exclusions gets the exclusions from the customer_orders
+-- split_extras gets the extras from the customer_orders
+-- ing_used gets the toppings that are not excluded and adds the extras
+-- final select statement gets the count of each ingredient
+with split_topping AS (
+  select coc.pizza_id::text || ':' || coalesce(exclusions,'-') || ':' || coalesce(extras,'-') as id,
+  		unnest(string_to_array(toppings, ','))::int as value
   from customer_orders_clean coc
-  left join pizza_recipes pr on coc.pizza_id = pr.pizza_id
-) select * from cte;
+  left join
+  	pizza_recipes pr 
+  	on coc.pizza_id = pr.pizza_id
+),
+split_exclusions AS (
+  select coc.pizza_id::text || ':' || coalesce(exclusions,'-') || ':' || coalesce(extras,'-') as id, unnest(string_to_array(exclusions, ','))::int as value
+  from customer_orders_clean coc
+),
+split_extras AS (
+  select coc.pizza_id::text || ':' || coalesce(exclusions,'-') || ':' || coalesce(extras,'-') as id, unnest(string_to_array(extras, ','))::int as value
+  from customer_orders_clean coc
+)
+, ing_used as (select
+	st.value
+from
+	split_topping st
+where not exists (
+	select 1 
+	from split_exclusions b 
+	where st.id = b.id and b.value = st.value
+	)
+union all 	
+select 	
+	se.value
+from
+	split_extras se)
 select
-  topping,
-  count(*) as topping_count
-from (
-  select
-    trim(unnest(string_to_array(cleaned_toppings_with_extras, ','))) as topping
-  from cte
-  where cleaned_toppings_with_extras is not null
-) t
-group by topping
-order by topping_count desc;
+	value, count(1) as cnt
+from
+	ing_used
+group by
+	value
+order by cnt desc;
+	
 
 
 
@@ -633,7 +625,9 @@ where
         		coc.order_id = roc.order_id 
         		and roc.cancellation is null);
 
+-- SKIPPED -- 
 -- PENDING --
+-- seems more of DDL and creating one fact table.
 --	The Pizza Runner team now wants to add an additional ratings system that allows customers to rate their runner, how would you design an additional table for this new dataset - generate a schema for this new table and insert your own data for ratings for each successful customer order between 1 to 5.
 
 
