@@ -51,7 +51,7 @@ from
 
 --What is the monthly distribution of trial plan start_date values for our dataset - use the start of the month as the group by value
 select
-	extract(mm11 from s.start_date) as month_,
+	extract(month from s.start_date) as month_,
 	count(1) as number_of_trials
 from
 	subscriptions s 
@@ -66,7 +66,7 @@ order by
 --What plan start_date values occur after the year 2020 for our dataset? Show the breakdown by count of events for each plan_name
 select 
 	p.plan_name ,
-	count(s.customer_id)
+	count(distinct s.customer_id)
 from
 	subscriptions s 
 left join
@@ -175,15 +175,82 @@ select * from "plans" p ;
 
 
 --How many days on average does it take for a customer to an annual plan from the day they join Foodie-Fi?
+with cte as (select
+	s.start_date,
+	lead(s.start_date, 1) over (partition by customer_id order by start_date) as next_date
+from
+	subscriptions s 
+where s.plan_id in (0,3))
+select 
+	round(avg(cte.next_date - cte.start_date),2)
+from
+	cte
+where 
+	cte.next_date is not null;
 
+-- using self join
+select
+	round(avg(s2.start_date - s1.start_date),2)
+from
+	subscriptions s1
+join
+	subscriptions s2
+	on s1.customer_id = s2.customer_id 
+	and s1.plan_id+3 = s2.plan_id 
+	and s2.plan_id = 3;
 
 
 --Can you further breakdown this average value into 30 day periods (i.e. 0-30 days, 31-60 days etc)
+with cte as (select
+	s.start_date,
+	lead(s.start_date, 1) over (partition by customer_id order by start_date) as next_date
+from
+	subscriptions s 
+where s.plan_id in (0,3))
+select 
+	(cte.next_date - cte.start_date)/30 as bin,
+	((cte.next_date - cte.start_date)/30 * 30)::text || ' - ' || (((cte.next_date - cte.start_date)/30 * 30) + 30)::text || ' days',
+	round(avg(cte.next_date - cte.start_date),2) as avg_tat
+from
+	cte
+where 
+	cte.next_date is not null
+group by 
+	bin
+order by bin;
 
 
 
 
 --How many customers downgraded from a pro monthly to a basic monthly plan in 2020?
+select
+	count(distinct s1.customer_id)
+from
+	subscriptions s1
+join
+	subscriptions s2
+	on s1.customer_id = s2.customer_id 
+	and s1.plan_id - 1 = s2.plan_id 
+	and s2.start_date > s1.start_date
+	and s2.plan_id = 1
+	and extract(year from s2.start_date) = 2020;
 
+-- using CTE, window functions
+with cte as (select
+	s.customer_id,
+	s.start_date,
+	s.plan_id,
+	lead(s.plan_id, 1) over (partition by customer_id order by start_date) as next_plan
+from
+	subscriptions s
+where 
+	s.plan_id in (1,2)
+	and s.start_date<='2020-12-31'
+)
+select 
+	count(distinct customer_id)
+from
+	cte
+where cte.plan_id = 2 and cte.next_plan = 1;
 
 
