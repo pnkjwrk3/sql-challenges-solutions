@@ -12,3 +12,6 @@ In this SQL challenge, I analyzed customer data for Danny’s Diner to uncover i
 ## Week 2: Pizza Runner [Link to Challenge](https://8weeksqlchallenge.com/case-study-2/)
 
 Pizza Runner, a pizza delivery service, wants to optimize their delivery processes. The goal was to identify the most loyal customers and improve the delivery experience. You can find my solutions for Week 2 [here](./PizzaRunner.md).
+
+## Week 3: Foodie-Fi [Link to Challenge](https://8weeksqlchallenge.com/case-study-3/)
+Foodie-Fi, a food delivery app, wants to understand user behavior and preferences. The goal was to improve the user experience and increase customer engagement. You can find my solutions for Week 3 [here](./FoodieFi.md).
