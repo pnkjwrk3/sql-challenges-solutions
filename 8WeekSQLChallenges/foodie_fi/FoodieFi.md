@@ -14,9 +14,9 @@ Danny created Foodie-Fi with a data driven mindset and wanted to ensure all futu
 
 ## Case Study Questions
 
-### A. Customer Journey [Link](Customer%20Journey.md)
+### A. Customer Journey [Link](A.%20Customer%20Journey.md)
 
-### B. Data Analysis Questions [Link](Data%20Analysis.md)
+### B. Data Analysis Questions [Link](B.%20Data%20Analysis.md)
 
 
 ### C. Challenge Payment Question

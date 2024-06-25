@@ -254,3 +254,12 @@ from
 where cte.plan_id = 2 and cte.next_plan = 1;
 
 
+
+-- C. Challenge Payment Question
+select 
+	*
+from 	
+	subscriptions s 
+where customer_id = 4;
+
+
