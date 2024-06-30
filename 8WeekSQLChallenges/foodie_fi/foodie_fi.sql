@@ -256,10 +256,23 @@ where cte.plan_id = 2 and cte.next_plan = 1;
 
 
 -- C. Challenge Payment Question
+with cte as 
+(select 
+	s.customer_id, 
+	p.plan_id, 
+	s.start_date as payment_date,
+	s.start_date ,
+	lead(s.start_date, 1) over (partition by customer_id order by start_date) as next_date,
+	p.price as amount	
+	from 
+		subscriptions s
+	join
+		"plans" p
+		on s.plan_id = p.plan_id)
 select 
 	*
 from 	
-	subscriptions s 
+	cte s 
 where customer_id = 4;
 
 
