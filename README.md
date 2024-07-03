@@ -25,8 +25,8 @@ The source for most of these challenges is StrataScratch.
 
 | Challenge | Description | Original Question |
 |-----------|-------------|------------------|
-| [Challenge 1](./easy/challenge1.sql) | Description of the challenge. | [Link to Original Question](https://example.com/original_question1) |
-| [Challenge 2](./easy/challenge2.sql) | Description of the challenge. | [Link to Original Question](https://example.com/original_question2) |
+| [Keyword Views](./hard/KeywordViews%20-%20Meta.sql) | Number of views per keyword across posts. | [Link to Original Question](https://dataford.io/sql/Keyword-Views) |
+| [The Most Equipped City](./hard/TheMostEquippedCity%20-%20Airbnb.sql) | Get city with max amenities across all properties. | [Link to Original Question](https://dataford.io/sql/The-Most-Equipped-City) |
 | [Challenge 3](./easy/challenge3.sql) | Description of the challenge. | [Link to Original Question](https://example.com/original_question3) |
 
 
