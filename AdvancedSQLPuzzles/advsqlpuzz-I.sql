@@ -274,5 +274,349 @@ from cte2 where rn = 1;
 
 
 -- Puzzle 23
+with cte as (
+select PERCENTILE_CONT(0.5) within group(order by score) as median from PlayerScores s )
+select PlayerID, Score,
+	case when score>=median then 1 else 2 end as rank
+from playerscores cross join cte
+order by rank;
 
+
+-- Puzzle 24
+with cte as (
+select OrderID, CustomerID, OrderDate, Amount, State, row_number() over (order by orderid desc) as rn
+from orders)
+select *
+from cte
+where rn between 5 and 10
+order by orderid;
+
+
+-- Puzzle 25
+with cte as (
+select o.vendor, o.customerid , sum(count::numeric) as oPlaced
+from orders o 
+group by o.vendor, o.CustomerID),
+ctern as (select  vendor, customerid, row_number() over (partition by customerid order by oPlaced desc) as rn 
+from cte)
+select vendor, customerid from ctern where rn =1;
+
+;
+
+--
+with cte as (select o.vendor, o.customerid , sum(count::numeric) over (partition by o.vendor, o.CustomerID) as oPlaced
+from orders o )
+, ctern as (select customerid, vendor, oPlaced, row_number() over (partition by customerid order by oPlaced desc) as rn from cte)
+select customerid, vendor from ctern where rn = 1;
+
+
+-- Puzzle 26
+select 	sum(case when year = extract(year from current_date) then amount else 0 end) as year0,
+		sum(case when year = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 YEAR') then amount else 0 end) as year1,
+		sum(case when year = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '2 YEAR') then amount else 0 end) as year2
+from sales;
+
+
+-- Puzzle 27
+with cte as (select integervalue , row_number() over (partition by integervalue order by integervalue) as rn
+from sampledata s) 
+select integervalue from cte where rn = 1;
+
+
+-- Puzzle 28 Note
+WITH cte_Count AS
+(
+select RowNumber,
+        TestCase,
+        count(testcase) OVER (ORDER BY RowNumber) AS DistinctCount 	-- basically creating groups for each testcase. running count for each testcase
+        															-- the first becomes 1, then 2, then 3 and so on. 
+    FROM Gaps
+)
+SELECT  RowNumber,
+        MAX(TestCase) OVER (PARTITION BY DistinctCount) AS TestCase -- selects the only testcase each group from above, and then assigns it
+FROM    cte_Count
+ORDER BY RowNumber;
+
+
+-- Puzzle 29 Note
+-- first get the rank for each status
+-- works like this, got a series of numbers, get row number for each row, partitioned by the status, and orderer by this number series.
+-- then subtract this row number from the number series.
+-- series 1,2,3,4,5,6 status p,p,f,f,p,p row_number = 1,2,1,2,3,4
+-- rank 0,0,2,2,2,2
+-- group by on status and rank p,0 f,2 p,2 - 3 groups as required
+with cte as (select StepNumber,
+		status,
+		row_number() over (partition by status order by stepnumber) as rn1,
+		stepnumber - row_number() over (partition by status order by stepnumber) as rnk
+from Groupings)
+select 
+	min(stepnumber), max(stepnumber), status,
+	max(stepnumber) - min(stepnumber)+1 as count1
+from cte
+group by 
+	status, rnk
+order by rnk;		
+
+
+-- Puzzle 31
+-- Rank, where rn = 2
+-- limit 1, where salary<(select max(sal) from table)
+
+
+-- Puzzle 32
+WITH cte as (
+select 
+	JobDescription,
+        MAX(MissionCount) AS MaxMissionCount,
+        MIN(MissionCount) AS MinMissionCount 
+from personal p 
+group by jobdescription)
+select c.jobdescription, p1.spacemanid as mostexp , p2.spacemanid as minexp
+from cte c
+join personal p1 on p1.jobdescription = c.jobdescription and p1.missioncount = c.maxmissioncount
+JOIN personal p2 on p2.jobdescription = c.jobdescription and p2.missioncount = c.minmissioncount;
+
+
+-- Puzzle 33
+with ctem as ( 
+	select product, max(DaysToManufacture) as DaysToBuild
+	from ManufacturingTimes mt
+	group by product
+) 
+select 
+	o.orderid,
+	o.product,
+	case
+		when cte.daystobuild > o.DaysToDeliver then 'Ahead of Schedule'
+		when cte.daystobuild < o.DaystoDeliver then 'Behind Schedule'
+		when cte.daystobuild = o.DaystoDeliver then 'On Schedule'
+	end as schedule
+from Orders o
+left join ctem cte on o.product = cte.product;
+
+
+-- Puzzle 34
+select  OrderID,
+        CustomerID,
+        Amount
+from    Orders
+except
+select  OrderID,
+        CustomerID,
+        Amount
+from    Orders
+where   CustomerID = 1001 AND Amount::numeric = 50;
+
+
+-- Puzzle 35
+select 
+	salesrepid
+from orders o 
+group by SalesRepID
+having count(distinct SalesType) < 2;
+
+-- find salesrep with salestype = 2 then not in.
+
+
+-- Puzzle 36 
+-- TSP - Sometime later.
+
+
+-- Puzzle 37
+select 
+	*, dense_rank() over (order by Distributor, Facility, zone)
+from GroupCriteria;
+
+
+-- Puzzle 38 -- cross join build a map of the expected. then join
+with cte_reg as (
+select distinct region from regionsales),
+cte_dist as (select distinct distributor from regionsales),
+pair_r as (select region, distributor
+from cte_reg cr
+cross join cte_dist)
+select pr.region, pr.distributor, case when rs.sales is null then 0 else rs.sales end as sales
+from pair_r pr
+left join regionsales rs on pr.region = rs.region and pr.distributor=rs.distributor
+order by pr.distributor;
+
+
+-- Puzzle 39 Skip
+
+
+-- Puzzle 40 -- seems like a specific use case. 
+select city
+from sortorder s 
+order by 
+	 (case city when 'Atlanta' then 3
+				when 'Baltimore' then 1
+                when 'Chicago' then 4
+                when 'Denver' then 2 end);
+               
+
+-- Puzzle 41 Some time later
+               
+               
+-- Puzzle 42 " " "
+               
+               
+-- Puzzle 43
+select *, min(quantity) over (partition by customerid order by orderid)
+from customerorders c ;
+
+
+-- Puzzle 44
+with cte as ( 
+select customerid, balancedate, lead(balancedate) over (partition by customerid order by balancedate) - 1 as next1, amount
+from balances)
+select customerid, balancedate as startdate, case when next1 is null then '2099-12-31' else next1 end as enddate, amount
+from cte
+order by customerid, balancedate desc ;
+
+
+
+-- Puzzle 45
+with cte as (
+select customerid, startdate, enddate, lead(startdate) over (partition by customerid order by StartDate) as nextstart, amount
+from balances)
+select customerid, startdate, enddate, amount
+from cte
+where enddate>=nextstart;
+
+
+-- Puzzle 46
+select accountid
+from accountbalances a 	
+group by accountid 
+having sum(balance::numeric)<0;
+--
+select distinct accountid
+from accountbalances a 
+where balance::numeric<0
+except
+select distinct accountid 
+from accountbalances a2 
+where balance::numeric>0;
+--
+select accountid
+from accountbalances a 
+group by accountid
+having max(balance::numeric)<0;
+
+
+-- Puzzle 47
+with times as (
+	select ScheduleID, starttime as time1
+	from schedule
+	union 
+	select ScheduleID, endtime as time1
+	from schedule
+	union 
+	select scheduleid, StartTime as time1
+	from activity
+	union 
+	select scheduleid, EndTime as time1
+	from activity)
+, act as (
+	select t.scheduleid, t.time1, coalesce(a1.ActivityName, 'Work') as act
+	from times t 
+	left join activity a1 on t.scheduleid = a1.scheduleid and t.time1 = a1.starttime
+)
+, act_times as (
+select scheduleid, act, time1 as starttime, lead(time1) over (partition by scheduleid order by time1) as endtime
+from act t)
+select * from act_times as t where endtime is not null
+order by t.scheduleid, t.starttime;
+
+
+-- Puzzle 48
+select s.salesid
+from sales s
+join sales s1 on s.year-1 = s1.year and s.salesid = s1.salesid
+join sales s2 on s.year-2 = s2.year and s.salesid = s2.salesid
+where s.year = 2021;
+
+
+-- Puzzle 49
+with cte as (
+	select lineorder, name, weight, sum(weight) over (order by lineorder) as cum_sum
+	from elevatororder e
+)
+select name from cte 
+where cum_sum<2000 
+order by cum_sum desc
+limit 1;
+
+
+-- Puzzle 50
+select *
+from pitches;
+
+with cte as(
+	select batterid, pitchnumber, result,
+			case when result='Ball' then 1 else 0 end as ball,
+			case when result in ('Foul', 'Strike') then 1 else 0 end as strike
+	from pitches p
+)
+, cte2 as (
+	select batterid, pitchnumber, result,
+		sum(ball) over (partition by batterid order by pitchnumber) as sumball,
+		sum(strike) over (partition by batterid order by pitchnumber) as sumstrike
+	from cte
+)
+, cte3 as (
+	select batterid, pitchnumber, result, 
+		lag(sumball,1,0) over (partition by batterid order by pitchnumber) as prev_ball, sumball,
+		case   when    Result IN ('Foul','In-Play') and
+                        LAG(sumstrike,1,0) over (partition by batterid order by pitchnumber) >= 3 THEN 2
+                when    result = 'Strike' and sumstrike >= 2 THEN 2
+                else    LAG(sumstrike,1,0) over (partition by batterid order by pitchnumber)
+        end as prev_strike, sumstrike
+	from cte2
+) --select * from cte3;
+select batterid, pitchnumber, result, concat(prev_ball, '-', prev_strike) as startpitchcount, 
+		case when result = 'In Play' then result
+			else concat(sumball, '-', (case when result = 'Foul' and sumstrike >= 3 then 2
+											when result = 'Strike' and sumstrike>=2 then 3
+											else sumstrike end))
+			end as endpitchcount
+from cte3;
+           
+
+
+-- Puzzle 53
+with cte as (select least(primaryid, spouseid) as id1, greatest(primaryid, spouseid) as id2, dense_rank() over (order by least(primaryid, spouseid)) as rn
+from spouses s
+group by
+    least(primaryid, spouseid),
+    greatest(primaryid, spouseid))
+select s.primaryid , s.spouseid , rn
+from spouses s
+join cte on s.primaryid = cte.id1 or s.spouseid = cte.id1
+order by cte.rn;
+
+
+-- Puzzle 54
+with cte as (select l.ticketid , count(w.number) as cnt
+from lotterytickets l 
+left join winningnumbers w on l."number" = w."number" 
+group by ticketid)
+select  sum(case when cnt = (select count(1) from winningnumbers) then 100
+			when cnt>0 then 10
+		else 0 end) as amt
+from cte;
+
+
+-- Puzzle 55
+--with cte as (select p.productname , p.quantity , p2.productname, p2.quantity 
+-- )
+select coalesce (p.productname, p2.productname),
+		case when p.productname=p2.productname and p.quantity=p2.quantity then 'Matches in both table A and table B'
+			when p.productname=p2.productname and p.quantity<>p2.quantity then 'Quantity in table A and table B do not match'
+			when p.productname is null and p2.productname is not null then 'Product does not exist in table A'
+			when p.productname is not null and p2.productname is null then 'Product does not exist in table B'
+			end
+from productsa p 
+full outer join productsb p2 on p.productname = p2.productname;
 
